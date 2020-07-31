@@ -712,17 +712,8 @@ pub(crate) fn build_dataflow<A: Allocate>(
                         Some(button)
                     }
                     SinkConnector::Tail(c) => {
-                        // Devolution code; batches could provide better methods for iteration.
-                        let collection = batches.flat_map(|batch| {
-                            let mut cursor = batch.cursor();
-                            let output = cursor.to_vec(&batch);
-                            output.into_iter().flat_map(|((row, ()), list)| {
-                                list.into_iter().map(move |(t, d)| (row.clone(), t, d))
-                            })
-                        });
-                        // TODO(cirego): Avoid devolution, change `tail` to take a stream of
-                        // batches, which are more easily enumerated in order.
-                        sink::tail(&collection, sink_id, c);
+                        // Unlike the other sinks, Tail accepts a stream of batches
+                        sink::tail(&batches, sink_id, c);
                         None
                     }
                     SinkConnector::AvroOcf(c) => {

@@ -11,6 +11,10 @@ use timely::dataflow::channels::pact::Pipeline;
 use timely::dataflow::operators::Operator;
 use timely::dataflow::{Scope, Stream};
 
+use differential_dataflow::trace::cursor::CursorDebug;
+use differential_dataflow::trace::implementations::ord::OrdKeyBatch;
+use differential_dataflow::trace::BatchReader;
+
 use futures::executor::block_on;
 use futures::sink::SinkExt;
 
@@ -19,7 +23,7 @@ use expr::{Diff, GlobalId};
 use repr::Row;
 
 pub fn tail<G>(
-    stream: &Stream<G, (Row, Timestamp, Diff)>,
+    stream: &Stream<G, std::rc::Rc<OrdKeyBatch<Row, Timestamp, isize>>>,
     id: GlobalId,
     connector: TailSinkConnector,
 ) where
@@ -27,19 +31,27 @@ pub fn tail<G>(
 {
     let mut tx = block_on(connector.tx.connect()).expect("tail transmitter failed");
     stream.sink(Pipeline, &format!("tail-{}", id), move |input| {
-        input.for_each(|_, rows| {
+        input.for_each(|_, batches| {
+            let rows = batches.iter().flat_map(|batch| {
+                let mut cursor = batch.cursor();
+                let output = cursor.to_vec(&batch);
+                output.into_iter().flat_map(|((row, ()), list)| {
+                    list.into_iter().map(move |(t, d)| (row.clone(), t, d))
+                })
+            });
+
             let mut results: Vec<Update> = Vec::new();
-            for (row, time, diff) in rows.iter() {
+            for (row, time, diff) in rows {
                 let should_emit = if connector.strict {
-                    connector.frontier.less_than(time)
+                    connector.frontier.less_than(&time)
                 } else {
-                    connector.frontier.less_equal(time)
+                    connector.frontier.less_equal(&time)
                 };
                 if should_emit {
                     results.push(Update {
                         row: row.clone(),
-                        timestamp: *time,
-                        diff: *diff,
+                        timestamp: time,
+                        diff: diff,
                     });
                 }
             }
