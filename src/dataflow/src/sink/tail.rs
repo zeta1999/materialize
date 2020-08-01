@@ -32,29 +32,32 @@ pub fn tail<G>(
     let mut tx = block_on(connector.tx.connect()).expect("tail transmitter failed");
     stream.sink(Pipeline, &format!("tail-{}", id), move |input| {
         input.for_each(|_, batches| {
-            let rows = batches.iter().flat_map(|batch| {
-                let mut cursor = batch.cursor();
-                let output = cursor.to_vec(&batch);
-                output.into_iter().flat_map(|((row, ()), list)| {
-                    list.into_iter().map(move |(t, d)| (row.clone(), t, d))
-                })
-            });
-
             let mut results: Vec<Update> = Vec::new();
-            for (row, time, diff) in rows {
-                let should_emit = if connector.strict {
-                    connector.frontier.less_than(&time)
-                } else {
-                    connector.frontier.less_equal(&time)
-                };
-                if should_emit {
-                    results.push(Update {
-                        row: row.clone(),
-                        timestamp: time,
-                        diff: diff,
+
+            batches.iter().for_each(|batch| {
+                let mut cursor = batch.cursor();
+                // TODO(frank): to_vec appears to be a debugging utility?
+                // I see a lot of clones happening inside of to_vec
+                // It looks like we should either rewrite this as a while loop over `keys_valid` or
+                // maybe `batch` should have a `for_each` method?
+                let rows = cursor.to_vec(&batch);
+                rows.into_iter().for_each(|((row, ()), list)| {
+                    list.into_iter().for_each(|(time, diff)| {
+                        let should_emit = if connector.strict {
+                            connector.frontier.less_than(&time)
+                        } else {
+                            connector.frontier.less_equal(&time)
+                        };
+                        if should_emit {
+                            results.push(Update {
+                                row: row.clone(),
+                                timestamp: time,
+                                diff: diff,
+                            });
+                        }
                     });
-                }
-            }
+                });
+            });
 
             // TODO(benesch): this blocks the Timely thread until the send
             // completes. Hopefully it's just a quick write to a kernel buffer,
