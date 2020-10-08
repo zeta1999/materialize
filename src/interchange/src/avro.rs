@@ -1521,14 +1521,13 @@ impl Decoder {
                     RowCoordinates::MySql { .. } => std::str::from_utf8(&self.buf2)?,
                     RowCoordinates::Postgres { .. } => "",
                 };
-                source.snapshot
-                    || dedup.should_use_record(
-                        file,
-                        source.row,
-                        coord,
-                        &self.debug_name,
-                        self.worker_index,
-                    )
+                dedup.should_use_record(
+                    file,
+                    source.row,
+                    coord,
+                    &self.debug_name,
+                    self.worker_index,
+                )
             } else {
                 true
             };
