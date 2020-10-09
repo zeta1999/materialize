@@ -473,11 +473,12 @@ pub fn decode_values<G>(
     // If the decoding elects to perform them, it should replace this with
     // `None`.
     operators: &mut Option<LinearOperator>,
-    fast_forwarded: bool,
+    mut fast_forwarded: bool,
 ) -> (Stream<G, (Row, Timestamp, Diff)>, Option<Box<dyn Any>>)
 where
     G: Scope<Timestamp = Timestamp>,
 {
+    fast_forwarded = false; // XXX - for testing
     let op_name = format!("{}Decode", encoding.op_name());
     let worker_index = stream.scope().index();
     match (encoding, envelope) {
