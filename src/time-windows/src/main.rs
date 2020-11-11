@@ -60,6 +60,8 @@ fn main() -> Result<()> {
         }
     }
 
+    println!("total lines={} {:?}", line, maxmin);
+
     Ok(())
 }
 
