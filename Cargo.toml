@@ -25,6 +25,7 @@ members = [
     "src/prof",
     "src/protoc",
     "src/repr",
+    "src/time-windows",
     "src/sql",
     "src/sqllogictest",
     "src/sql-parser",
